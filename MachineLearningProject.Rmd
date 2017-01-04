@@ -1,0 +1,157 @@
+---
+title: "Practical Machine Learning Course Project"
+author: "Rashid Istami"
+date: "1/4/2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Executive Summary
+
+In this project, we will use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. Participants were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website [here.]( http://groupware.les.inf.puc-rio.br/har)
+The goal of this project is to predict the manner in which they did the exercise, specifically,
+we are trying to predict the outcome of the variable classe.
+Training data set was downloaded from [here](https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv) and Test data set was downloaded from [here.](https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv)
+
+#### Load required libraries
+```{r}
+library(caret)
+library(rattle)
+library(rpart)
+library(rpart.plot)
+library(randomForest)
+```
+
+### Exploratory Data Analysis
+
+Firstly, we perform some expolarotary data analysis to understand the data sets and perform data clean up as needed.
+
+```{r}
+training <- read.csv("pml-training.csv", na.strings = c("NA", "#DIV/0!",""))
+dim(training)
+testing <- read.csv("pml-testing.csv", na.strings = c("NA", "#DIV/0!",""))
+dim(testing)
+```
+As we can see, there are 160 variables on both data sets while training data set has 19622 observations, test data set has only 20 observations. Let us take a look at the variable names.
+
+```{r}
+colnames(training)
+```
+Based on variable names, we will not need columns 1-7 for our analysis, thus we wil remove
+those columns.
+
+```{r}
+training<-training[,-c(1:7)]
+testing<-testing[,-c(1:7)]
+```
+
+Let us check percentage of NAs for each variable.
+```{r}
+nas<-colMeans(is.na(training))
+print(nas)
+```
+As we can see that there are some variables that have almost 98% NAs. We will remove those columns.
+
+```{r}
+training<-training[ , colSums(is.na(training)) == 0]
+testing<-testing[ , colSums(is.na(testing)) == 0]
+```
+
+Now we romove any columns that has near zero variance.
+
+```{r}
+nzv <- nearZeroVar(training, saveMetrics=TRUE)
+training <- training[,nzv$nzv==FALSE]
+
+nzv <- nearZeroVar(testing, saveMetrics=TRUE)
+testing <- testing[,nzv$nzv==FALSE]
+```
+
+Now, let us check remaining variables in training and test data sets
+
+```{r}
+colnames(training)
+colnames(testing)
+```
+
+It is good that except the last variable in both data sets, other variables are same. Remove last column from testing.
+
+```{r}
+testing<-testing[,-53]
+```
+
+
+### Prediction Models
+We will build multiple models and pick one based on accuracy.
+
+First, split training data into train and validation sets on 80/20 split.
+```{r}
+set.seed(123456)
+tr <- createDataPartition(training$classe, p = 0.8, list = FALSE)
+train <- training[tr, ]
+validation<-training[-tr, ]
+```
+
+#### Decision Tree Model
+
+```{r}
+set.seed(98765)
+control <- trainControl(method = "cv", number = 5)
+fit1 <- train(classe ~ ., data = train, method = "rpart",trControl = control)
+print(fit1)
+fancyRpartPlot(fit1$finalModel)
+```
+
+```{r}
+# predict outcome using validation data set
+predict1 <- predict(fit1, validation)
+# check prediction results
+confm1 <- confusionMatrix(validation$classe, predict1)
+print(confm1)
+# check accuracy
+accuracy1 <- confm1$overall[1]
+print(accuracy1)
+```
+
+Since, the model accuracy is 50%, out of sample error is 50%, meaning the decision tree model is not a good model to predict outcome.
+
+
+#### Random Forest Model
+Since decision tree model did not predict outcome well, let us try random forest model.
+
+```{r}
+fit2 <- train(classe ~ ., data = train, method = "rf",trControl = control)
+print(fit2)
+```
+
+```{r}
+# predict outcomes using validation set
+predict2 <- predict(fit2, validation)
+# Show prediction result
+confm2 <- confusionMatrix(validation$classe, predict2)
+print(confm2)
+accuracy2 <- confm2$overall[1]
+print(accuracy2)
+```
+
+The accuracy rate is 99.33%, therefore out-of-sample error is 0.67%, meaning randon forest model predicts outcome very well thus we will use random forest model to predict the outcome classe.
+
+### Prediction on Testing Set
+Now, we use the random forest model to predict classe variable on test data set.
+
+```{r}
+predict(fit2, testing)
+```
+
+### Conclusion
+We tried 2 different models and picked Random Forest model since it had very small out of sample error rate and predicted classe variable for testing data set.
+
+
+
+
+
+
+
